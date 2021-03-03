@@ -13,17 +13,23 @@ get_ipython().run_line_magic('load_ext', 'watermark')
 get_ipython().run_line_magic('watermark', '-v -m -p numpy,sklearn,pandas,scipy,matplotlib,statsmodels -g')
 
 
+# In[1]:
+
+
+TQDM_DISABLE = True
+
+
 # TODO:
 #     
 # - [x] Оценка соответствия длины сессии в сайтах и соответствующей ей длины сессии в секундах
 # - [x] ограничение длинны сессии по времени
 # - [ ] ?pipeline?
-# - [ ] генерация новых признаков
-# - [ ] отбор признаков
-# - [ ] выбор алгоритма
-# - [ ] оптимизация параметров алгоритма
-# - [ ] выводы
-# - [ ] оформление (текст, описание)
+# - [x] генерация новых признаков
+# - [x] отбор признаков
+# - [x] выбор алгоритма
+# - [x] оптимизация параметров алгоритма
+# - [x] выводы
+# - [x] оформление (текст, описание)
 
 # In[3]:
 
@@ -47,7 +53,7 @@ from scipy.sparse import csr_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import SGDClassifier
 
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -89,8 +95,6 @@ ANSW = os.path.join('.', 'answers')
 
 
 filenames_all = [re.findall('\d+', x)[0] for x in sorted(glob.glob(PATH_TO_DATA_ALL + '/*.csv'))]
-#filenames_10users_sub = [re.findall('\d+', x[-12:])[0] for x in sorted(glob.glob(os.path.join(PATH_TO_DATA, '10users') + '/*.csv'))]
-#filenames_150users_sub = [re.findall('\d+', x[-12:])[0] for x in sorted(glob.glob(os.path.join(PATH_TO_DATA, '150users') + '/*.csv'))]
 
 
 # Первым делом предобработаем данные: получим длительность нахождения пользователя на сайте в секундах, зададим названия колонок/признаков.    
@@ -105,25 +109,13 @@ filenames_all = [re.findall('\d+', x)[0] for x in sorted(glob.glob(PATH_TO_DATA_
 # In[7]:
 
 
-get_ipython().run_cell_magic('time', '', "# 6 min\nif not os.path.isfile(os.path.join(PATH_TO_DATA_ALL_PREP, f'cat0001.csv')):\n    not_monotonic = 0\n    for el in tqdm(filenames_all, desc = u'по всем пользователям'):\n        temp_dataframe = pd.read_csv(os.path.join(PATH_TO_DATA_ALL, f'cat{el}.csv'), header = None, sep= ';')#, parse_dates=[1]))\n        temp_dataframe.columns = ['target', 'timestamp', 'site']\n        temp_dataframe.timestamp = pd.to_datetime(temp_dataframe.timestamp)\n        if not temp_dataframe.timestamp.is_monotonic:\n            temp_dataframe.sort_values(by = 'timestamp', ascending = True, inplace = True, ignore_index = True)\n            not_monotonic += 1\n        temp_dataframe['time_diff'] = temp_dataframe.timestamp.diff().shift(-1).apply(lambda x: x.total_seconds())\n        temp_dataframe.loc[temp_dataframe.shape[0] - 1, 'time_diff'] = 0.0\n        \n        temp_dataframe.to_csv(os.path.join(PATH_TO_DATA_ALL_PREP, f'cat{el}.csv'), index = False)\n        \n    print(not_monotonic / len(filenames_all))")
+get_ipython().run_cell_magic('time', '', "# 6 min\nif not os.path.isfile(os.path.join(PATH_TO_DATA_ALL_PREP, f'cat0001.csv')):\n    not_monotonic = 0\n    for el in tqdm(filenames_all, desc = u'по всем пользователям', disable = TQDM_DISABLE):\n        temp_dataframe = pd.read_csv(os.path.join(PATH_TO_DATA_ALL, f'cat{el}.csv'), header = None, sep = ';')#, parse_dates=[1]))\n        temp_dataframe.columns = ['target', 'timestamp', 'site']\n        temp_dataframe.timestamp = pd.to_datetime(temp_dataframe.timestamp)\n        if not temp_dataframe.timestamp.is_monotonic:\n            temp_dataframe.sort_values(by = 'timestamp', ascending = True, inplace = True, ignore_index = True)\n            not_monotonic += 1\n        temp_dataframe['time_diff'] = temp_dataframe.timestamp.diff().shift(-1).apply(lambda x: x.total_seconds())\n        temp_dataframe.loc[temp_dataframe.shape[0] - 1, 'time_diff'] = 0.0\n        \n        temp_dataframe.to_csv(os.path.join(PATH_TO_DATA_ALL_PREP, f'cat{el}.csv'), index = False)\n        \n    print(not_monotonic / len(filenames_all))")
 
-temp_dataframe = pd.read_csv(os.path.join(PATH_TO_DATA_ALL, f'cat{filenames_all[0]}.csv'), header = None, sep= ';')#, parse_dates=[1]))
-temp_dataframe.columns = ['target', 'timestamp', 'site']
-temp_dataframe.timestamp = pd.to_datetime(temp_dataframe.timestamp)
-if not temp_dataframe.timestamp.is_monotonic:
-    temp_dataframe.sort_values(by = 'timestamp', ascending = True, inplace = True, ignore_index = True)
-    #not_monotonic += 1
-temp_dataframe['time_diff'] = temp_dataframe.timestamp.diff().shift(-1).apply(lambda x: x.total_seconds())
+
 # In[ ]:
 
 
 
-
-
-# In[8]:
-
-
-#Подготовим данные: разделим каждый файл на 3 колонки и пересохраним, что бы в дальнейшем читать только необходимые нам данные
 
 
 # In[9]:
@@ -136,13 +128,10 @@ def get_bootstrap_samples(data, n_samples, n_users = 10, random_seed=42):
     if n_users < 501:
         return np.random.randint(0, len(data), (n_samples, n_users))
         
-    #elif n_users < 3000:    
     else:
         random_seed = 9999
         np.random.seed(random_seed)
         return np.random.randint(0, len(data), (1, n_users))
-    #else:
-    #    return np.ndarray()
 
 
 # In[10]:
@@ -156,16 +145,10 @@ def create_load_freq_site_dict(files, users_count, indexes = []):
         outp_freq_site_dict = dict()
         site_cnt = Counter()
         
-        for idx in tqdm(indexes, desc = 'for all filenames'):
-            #temp_dataframe = pd.read_csv(os.path.join(PATH_TO_DATA_ALL, f'cat{files[idx]}.csv'), header = None, sep= ';')#, parse_dates=[1]))
-            #temp_dataframe.columns = ['target', 'timestamp', 'site']
+        for idx in tqdm(indexes, desc = 'for all filenames', disable = TQDM_DISABLE):
             temp_dataframe = pd.read_csv(os.path.join(PATH_TO_DATA_ALL_PREP, f'cat{files[idx]}.csv'), 
-                                         #sep= ';', 
-                                         usecols = ['site'])#, parse_dates=[1]))
+                                         usecols = ['site'])
             site_cnt += Counter(temp_dataframe.site.values)
-            #rows += round(temp_dataframe.shape[0] / sess_len + 0.499)
-
-        #rows = rows
 
         for idx, site_dict in enumerate(site_cnt.most_common(), start = 1):
             outp_freq_site_dict[site_dict[0]] = (idx, site_dict[1])    
@@ -178,7 +161,7 @@ def create_load_freq_site_dict(files, users_count, indexes = []):
 # In[11]:
 
 
-get_ipython().run_cell_magic('time', '', "# 16 sec\nif not os.path.isfile(os.path.join(PATH_TO_DATA_OWN, 'site_freq_full_data.pkl')):\n    freq_site_dict = create_load_freq_site_dict(filenames_all, len(filenames_all), range(len(filenames_all)))\n    pickle.dump(freq_site_dict, open(os.path.join(PATH_TO_DATA_OWN, 'site_freq_full_data.pkl'), 'wb'))\n    print(len(freq_site_dict))\nelse:\n    #pkl_name = os.path.join(PATH_TO_DATA_OWN, 'site_freq_full_data.pkl')\n    freq_site_dict = pickle.load(open(os.path.join(PATH_TO_DATA_OWN, 'site_freq_full_data.pkl'), 'rb'))")
+get_ipython().run_cell_magic('time', '', "# 16 sec\nif not os.path.isfile(os.path.join(PATH_TO_DATA_OWN, 'site_freq_full_data.pkl')):\n    freq_site_dict = create_load_freq_site_dict(filenames_all, len(filenames_all), range(len(filenames_all)))\n    pickle.dump(freq_site_dict, open(os.path.join(PATH_TO_DATA_OWN, 'site_freq_full_data.pkl'), 'wb'))\n    print(len(freq_site_dict))\nelse:\n    freq_site_dict = pickle.load(open(os.path.join(PATH_TO_DATA_OWN, 'site_freq_full_data.pkl'), 'rb'))")
 
 
 # In[12]:
@@ -218,7 +201,7 @@ SEARCH = basis + 18
 # ему необходимо определить пользователся, ведь в случае мошенника этот промежуток времени должен составлять секунды.
 # Т.к. задача до таких подробностей для нас не конкретизирована, то предоставим условному заказчику обширные сведения для выбора. Тем более определить пользователя за секунды в нашем случае не выглядит возможным.
 
-# ### Оценка охвата при ограничении длительности сессии по времени
+# ### Оценка охвата полных сессий при ограничении длительности сессии по времени.
 
 # Для начала оценим охват полных сессий при выставлении ограничения. Оценку будем проводить по всей доступной нам выборке.
 
@@ -246,7 +229,6 @@ def get_area(inp_cntr, inp_borders, inp_list_len):
             if el < brd:
                 ssum += inp_cntr[el]
 
-        #ret_area.append(int( 100 * ssum / inp_list_len))
         ret_area.append(ssum / inp_list_len)
         
     return ret_area
@@ -268,7 +250,7 @@ possible_borders  = [10, 30, 60, 300, 600, 1800, 3600]
 # In[16]:
 
 
-get_ipython().run_cell_magic('time', '', "\nfig_coverage = make_subplots(rows=2, cols=2, shared_yaxes=True)\n#fig_len = make_subplots(rows=2, cols=2, shared_yaxes=True)\n\nfor idx, sessl in enumerate(tqdm(possible_sess_len, desc = 'по выбранным вариантам длины сессии')):\n    all_list = get_all_rollings_list(filenames_all, sessl)\n    cnt = Counter(all_list)\n    \n    area = get_area(cnt, possible_borders, len(all_list))\n    \n    fig_coverage.add_scatter( x = np.array(possible_borders), y = np.array(area), mode='lines',\n                             name = u'сессия длиною ' + str(sessl),\n                             row=int((idx/2)+1), col=int((idx%2)+1),\n                            )\n    one_more_trace=dict(\n                       type = 'scatter',\n                       x = [1800],\n                       y = [area[5]],\n                       mode = 'markers+text',\n                       text = str(area[5])[:6],\n                       marker = dict(\n                                  color = 'red',\n                                  size = 13,\n                                   ),\n                       showlegend = False,\n                       )\n    fig_coverage.append_trace(one_more_trace,\n                             row=int((idx/2)+1), col=int((idx%2)+1)\n                             )\n    fig_coverage.update_traces(textposition = 'top center') \n    \n    \n    #fig_len.add_trace(go.Box(y=all_list, name = sessl),\n    #                         row=int((idx/2)+1), col=int((idx%2)+1)\n    #                         )")
+get_ipython().run_cell_magic('time', '', "\nfig_coverage = make_subplots(rows=2, cols=2, shared_yaxes=True)\n\nfor idx, sessl in enumerate(tqdm(possible_sess_len, desc = 'по выбранным вариантам длины сессии', disable = TQDM_DISABLE)):\n    all_list = get_all_rollings_list(filenames_all, sessl)\n    cnt = Counter(all_list)\n    \n    area = get_area(cnt, possible_borders, len(all_list))\n    \n    fig_coverage.add_scatter( x = np.array(possible_borders), y = np.array(area), mode='lines',\n                             name = u'сессия длиною ' + str(sessl),\n                             row=int((idx/2)+1), col=int((idx%2)+1),\n                            )\n    one_more_trace=dict(\n                       type = 'scatter',\n                       x = [1800],\n                       y = [area[5]],\n                       mode = 'markers+text',\n                       text = str(area[5])[:6],\n                       marker = dict(\n                                  color = 'red',\n                                  size = 13,\n                                   ),\n                       showlegend = False,\n                       )\n    fig_coverage.append_trace(one_more_trace,\n                             row=int((idx/2)+1), col=int((idx%2)+1)\n                             )\n    fig_coverage.update_traces(textposition = 'top center') \n    ")
 
 
 # In[17]:
@@ -300,7 +282,7 @@ fig_coverage.show()
 
 
 
-# ### Дальше оценим влияние ширины окна и длины сессии в сайтах
+# ### Дальше оценим влияние ширины окна и длины сессии в сайтах.
 
 # In[18]:
 
@@ -386,10 +368,10 @@ def prepare_sparse_train_set_window_old(inp_fnames, inp_idexes, inp_sess_len,
     data_csr = []
     
     index = 0
-    print_index = 0
+
     
     for idx in (inp_idexes):
-        #print(index)
+
         temp_dataframe = pd.read_csv(os.path.join(PATH_TO_DATA_ALL_PREP, f'cat{inp_fnames[idx]}.csv'), 
                                          usecols = ['site', 'time_diff']
                                         )
@@ -405,19 +387,14 @@ def prepare_sparse_train_set_window_old(inp_fnames, inp_idexes, inp_sess_len,
 
             for n, site in enumerate(temp_dataframe.site.values[sess_start : sess_end]):
                 new_sess['site' + str(n+1)] = inp_freq_site_dict[site][0]
-            #new_sess['user_id'] = userid
+
             ret_userid_list.append(userid)
 
-            #if print_index < 5:
-            #    print(new_sess)
-            #    print_index += 1
-                
+
             cnt_csr = Counter(new_sess.values())
-            row_csr += [index] * len(cnt_csr)     # row number in which value is parse
-            #row_csr += [row_index] * len(cnt_csr)  # row number in which value is parse
+            row_csr += [index] * len(cnt_csr)      # row number in which value is parse
             data_csr+= list(cnt_csr.values())      # value
             col_csr += list(cnt_csr.keys())        # column number in which value is parse
-            #ret_userid_list.append(userid)
             index += 1
 
             
@@ -435,7 +412,6 @@ def prepare_sparse_train_set_window_old(inp_fnames, inp_idexes, inp_sess_len,
             
     
     ret_csr = csr_matrix((data_csr, (row_csr, col_csr)), shape = (max(row_csr)+1, max(col_csr)+1))[:, 1:]
-    #print(early_exit)
     
     return ret_csr, np.array(ret_userid_list)
 
@@ -449,16 +425,16 @@ def prepare_sparse_train_set_window_old(inp_fnames, inp_idexes, inp_sess_len,
 # In[21]:
 
 
-get_ipython().run_cell_magic('time', '', "\nfull_acc_ws = []\n\nfor nusers in variants_users_ws:\n    indexes = get_bootstrap_samples(filenames_all, 1, nusers)\n    acc_ws = np.zeros((len(variants_window_size), len(variants_sess_length)))\n    variant_ws_list = list(itertools.product(variants_window_size, variants_sess_length))\n\n    for window_size, session_len in tqdm(variant_ws_list, desc = str(nusers) + u' пользователя'):\n            acc = 0\n            if window_size <= session_len:\n                train_data_sparse, targets = prepare_sparse_train_set_window(filenames_all, indexes[0], session_len, \n                #train_data_sparse, targets = prepare_sparse_train_set_window_old(filenames_all, indexes[0], session_len, \n                                                                             window_size, freq_site_dict)\n\n                try:\n                    X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                          test_size=0.3, \n                                                          random_state=821, stratify=targets)\n                except ValueError:\n                    X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                          test_size=0.3, \n                                                          random_state=821)\n                    if len(set(y_train)) == 1:\n                        continue\n\n                clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                                   max_iter = 1500,\n                                   )\n                clf.fit(X_train, y_train)\n                y_pred = clf.predict(X_valid)\n                acc = accuracy_score(y_valid, y_pred)\n\n            acc_ws[map_dict[window_size]][map_dict[session_len]] = acc    # row, column\n    \n    full_acc_ws.append(acc_ws)")
+get_ipython().run_cell_magic('time', '', "\nfull_acc_ws = []\nfull_f1_wc  = []\n\nfor nusers in variants_users_ws:\n    indexes = get_bootstrap_samples(filenames_all, 1, nusers)\n    acc_ws = np.zeros((len(variants_window_size), len(variants_sess_length)))\n    f1_ws  = np.zeros((len(variants_window_size), len(variants_sess_length)))\n    variant_ws_list = list(itertools.product(variants_window_size, variants_sess_length))\n\n    for window_size, session_len in tqdm(variant_ws_list, desc = str(nusers) + u' пользователя', disable = TQDM_DISABLE):\n            acc = 0\n            f1  = 0\n            if window_size <= session_len:\n                train_data_sparse, targets = prepare_sparse_train_set_window(filenames_all, indexes[0], session_len, \n                #train_data_sparse, targets = prepare_sparse_train_set_window_old(filenames_all, indexes[0], session_len, \n                                                                             window_size, freq_site_dict)\n\n                try:\n                    X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                          test_size=0.3, \n                                                          random_state=821, stratify=targets)\n                except ValueError:\n                    X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                          test_size=0.3, \n                                                          random_state=821)\n                    if len(set(y_train)) == 1:\n                        continue\n\n                clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                                   max_iter = 1500,\n                                   )\n                clf.fit(X_train, y_train)\n                y_pred = clf.predict(X_valid)\n                acc = accuracy_score(y_valid, y_pred)\n                f1  = f1_score(y_valid, y_pred, average = 'macro')\n\n            acc_ws[map_dict[window_size]][map_dict[session_len]] = acc    # row, column\n            f1_ws[map_dict[window_size]][map_dict[session_len]] = f1      # row, column\n    \n    full_acc_ws.append(acc_ws)\n    full_f1_ws.append(f1_ws)")
 
 
 # In[22]:
 
 
-fig = make_subplots(rows=1, cols=3, #shared_xaxes=True, 
-                    specs=[[{'type': 'surface', 'is_3d': True}, {'type': 'surface', 'is_3d': True}, {'type': 'surface', 'is_3d': True}]],
-                    subplot_titles = [u'Для 3 пользователей', u'Для 10 пользователей', u'Для 100 пользователей']
-                   )
+fig_acc= make_subplots(rows=1, cols=3, #shared_xaxes=True, 
+                       specs=[[{'type': 'surface', 'is_3d': True}, {'type': 'surface', 'is_3d': True}, {'type': 'surface', 'is_3d': True}]],
+                       subplot_titles = [u'Для 3 пользователей', u'Для 10 пользователей', u'Для 100 пользователей']
+                      )
 for idx in range(len(variants_users_ws)):
     fig3da = go.Surface(    
                        #contours = {
@@ -469,34 +445,75 @@ for idx in range(len(variants_users_ws)):
                        y = variants_sess_length,  
                        showscale = False,
                        name = str(variants_users_ws[idx]) + u' users',
-                       # colorbar_z = 1
                        )
-    fig.add_trace( fig3da,
-                    row=1, col=idx+1
-                   )
-    #fig.update_traces(contours_z=dict(show=True, usecolormap=True,
-    #                              highlightcolor="limegreen", project_z=True))
+    fig_acc.add_trace( fig3da,
+                      row=1, col=idx+1
+                     )
 
-fig.update_layout(title  = u'Ожидаемая точность в зависимости от ширины окна и длинны сессии',
-                  height = 400,
-                  margin = dict(l=30, r=30, b=0, t=70),
-                  scene  = dict(xaxis_title = u'Длина сессии',
-                    yaxis_title = u'Ширина окна',
-                    zaxis_title = u'Точность',
-                    camera_eye  = dict(x=1.2, y=1.7, z=1.2),
-                              ),
-                  scene2 = dict(xaxis_title = u'Длина сессии',
-                    yaxis_title = u'Ширина окна',
-                    zaxis_title = u'Точность',
-                    camera_eye  = dict(x=1.2, y=1.7, z=1.2),
-                               ),
-                  scene3 = dict(xaxis_title = u'Длина сессии',
-                    yaxis_title = u'Ширина окна',
-                    zaxis_title = u'Точность',
-                    camera_eye  = dict(x=1.2, y=1.7, z=1.2),
-                               ),
-                 )#update_layout
-fig.show()   
+fig_acc.update_layout(title  = u'Ожидаемая точность в зависимости от ширины окна и длинны сессии',
+                      height = 400,
+                      margin = dict(l=30, r=30, b=0, t=70),
+                      scene  = dict(xaxis_title = u'Длина сессии',
+                        yaxis_title = u'Ширина окна',
+                        zaxis_title = u'Точность',
+                        camera_eye  = dict(x=1.2, y=1.7, z=1.2),
+                                  ),
+                      scene2 = dict(xaxis_title = u'Длина сессии',
+                        yaxis_title = u'Ширина окна',
+                        zaxis_title = u'Точность',
+                        camera_eye  = dict(x=1.2, y=1.7, z=1.2),
+                                   ),
+                      scene3 = dict(xaxis_title = u'Длина сессии',
+                        yaxis_title = u'Ширина окна',
+                        zaxis_title = u'Точность',
+                        camera_eye  = dict(x=1.2, y=1.7, z=1.2),
+                                   ),
+                     )#update_layout
+fig_acc.show()   
+
+
+# In[ ]:
+
+
+fig_f1= make_subplots(rows=1, cols=3, #shared_xaxes=True, 
+                        specs=[[{'type': 'surface', 'is_3d': True}, {'type': 'surface', 'is_3d': True}, {'type': 'surface', 'is_3d': True}]],
+                        subplot_titles = [u'Для 3 пользователей', u'Для 10 пользователей', u'Для 100 пользователей']
+                       )
+for idx in range(len(variants_users_ws)):
+    fig3da = go.Surface(    
+                       #contours = {
+                       #           "z": {"show": True, "start": 0.60, "end": 1, "size": 0.02}
+                       #           },
+                       z = full_f1_ws[idx], 
+                       x = variants_window_size, 
+                       y = variants_sess_length,  
+                       showscale = False,
+                       name = str(variants_users_ws[idx]) + u' users',
+                       )
+    fig_f1.add_trace( fig3da,
+                      row=1, col=idx+1
+                     )
+
+fig_f1.update_layout(title  = u'Ожидаемая метрика f1_score в зависимости от ширины окна и длинны сессии',
+                      height = 400,
+                      margin = dict(l=30, r=30, b=0, t=70),
+                      scene  = dict(xaxis_title = u'Длина сессии',
+                        yaxis_title = u'Ширина окна',
+                        zaxis_title = u'f1_score',
+                        camera_eye  = dict(x=1.2, y=1.7, z=1.2),
+                                  ),
+                      scene2 = dict(xaxis_title = u'Длина сессии',
+                        yaxis_title = u'Ширина окна',
+                        zaxis_title = u'f1_score',
+                        camera_eye  = dict(x=1.2, y=1.7, z=1.2),
+                                   ),
+                      scene3 = dict(xaxis_title = u'Длина сессии',
+                        yaxis_title = u'Ширина окна',
+                        zaxis_title = u'f1_score',
+                        camera_eye  = dict(x=1.2, y=1.7, z=1.2),
+                                   ),
+                     )#update_layout
+fig_f1.show()   
 
 
 # Действительно, как мы видим, ожидаемая точность повышается при увеличении ограничения по длительности сессии как по времени так и по количеству сайтов и при снижении размера окна между сессиями.
@@ -511,12 +528,14 @@ fig.show()
 
 
 
-# ### Влияние количества пользователей на классификацию
+# ### Влияние количества пользователей на классификацию.
 
-# Последний не рассмотренный нами параметр - количество пользователей (классов), для которых нам необходимо производить идентификацию. По практике, чем больше классов, тем хуже классификация. Посмотрим.    
-# Будем производить оценку для классификации выборок из 2, 5, 10, 50, 100, 500, 1000, 2000, 3370 пользователей.
+# Последний не рассмотренный нами параметр - количество пользователей (классов), для которых нам необходимо производить идентификацию.  
+# По практике, чем больше классов, тем хуже классификация. Посмотрим.    
+# Будем производить оценку для классификации выборок на скораценном переборе из 2, 5, 10, 50, пользователей.
 # 
-# т.о. для оценки классификации с диапазоном ХХХ для 2х пользователей понадобится ХХХ итераций, 5 - , 10 - , 50 - , 100 - , 500 - , 1000 - , 2000 - , 3370 - 
+# Для оценки классификации пользователей будем использовать слелующее количество итераций,  
+# 2 - 100, 5 - 100, 10 - 100, 50 - 50, 100 - 10.  
 # Оценку будем произвлдить при помощи SGDClassifier, по причине его быстроты.
 
 # In[ ]:
@@ -535,23 +554,12 @@ variant_naver  = [100, 100, 100, 50, 10, ]#  5,   1,    1,    1]
 len(variant_nusers) == len(variant_naver)
 
 
-# In[24]:
-
-
-#for params in tqdm(zip(variant_naver, variant_nusers)):
-#    print(params[0], params[1])
-
-
 # Рассчитаем точность по выбранным параметрам
-
-# <i>как мы видели ранее, оптимальным значением для размера окна является 1 (при этом стоит обратить внимание не переобучается ли модель в таких случаях), но, исходя     
-# из соотношения затраченного времени / выгоды для учебного проекта, все дальнейшие расчеты будем вести все же с параметром размера окна равным 5. т.к. для параметра 1 
-# расчеты на моем железе производятся неоправдано долго
 
 # In[25]:
 
 
-get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\n\nfull_acc = []\n    \nparam_list = list(zip(variant_naver, variant_nusers))\nfor params in tqdm(param_list, desc = u'для всех вариантов пользователей и подвыборок'):\n\n    indexes = get_bootstrap_samples(filenames_all, params[0], params[1])\n   \n    acc = []\n    for idx in indexes:\n        train_data_sparse, targets = prepare_sparse_train_set_window(filenames_all, idx, sess_len, \n                                                                     wind_size, freq_site_dict,\n                                                                    )\n        \n        try:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821, stratify=targets)\n        except ValueError:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821)\n            if len(set(y_train)) == 1:\n                #print('gg')\n                continue\n\n        \n        clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                           max_iter = 1500,\n                           )\n        clf.fit(X_train, y_train)\n        y_pred = clf.predict(X_valid)\n        acc.append(accuracy_score(y_valid, y_pred))\n        \n    full_acc.append(acc)")
+get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\n\nfull_acc_users = []\nfull_f1_users  = []\n    \nparam_list = list(zip(variant_naver, variant_nusers))\nfor params in tqdm(param_list, desc = u'для всех вариантов пользователей и подвыборок', disable = TQDM_DISABLE):\n\n    indexes = get_bootstrap_samples(filenames_all, params[0], params[1])\n   \n    acc = []\n    f1  = []\n    for idx in indexes:\n        train_data_sparse, targets = prepare_sparse_train_set_window(filenames_all, idx, sess_len, \n                                                                     wind_size, freq_site_dict,\n                                                                    )\n        \n        try:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821, stratify=targets)\n        except ValueError:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821)\n        \n        clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                           max_iter = 1500,\n                           )\n        clf.fit(X_train, y_train)\n        y_pred = clf.predict(X_valid)\n        acc.append(accuracy_score(y_valid, y_pred))\n        f1.append(f1_score(y_valid, y_pred, average = 'macro'))\n        \n    full_acc_users.append(acc)\n    full_f1_users.append(f1)")
 
 
 # Посмотрим на ожидаемую точность (accuracy)
@@ -559,22 +567,43 @@ get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\n\nful
 # In[26]:
 
 
-fig_acc = go.Figure()
+fig_acc_users = go.Figure()
 lin_acc = []
 x_names = [str(el) + u' пользователей' for el in variant_nusers]
 x_names[0] = str(variant_nusers[0]) + u' пользователя'
-for idx, el in enumerate(full_acc):
+for idx, el in enumerate(full_acc_users):
     lin_acc.append(np.mean(el))
-    fig_acc.add_trace(go.Box(y=el, name = x_names[idx]))
+    fig_acc_users.add_trace(go.Box(y=el, name = x_names[idx]))
     
 #fig.add_trace(go.Scatter(y=lin_acc, x = x_names))
-fig_acc.update_layout(
+fig_acc_users.update_layout(
     autosize = False,
     width  = 900,
     height = 500, 
     title  = u'Ожидаемая точность в зависимости от количества пользователей для классификации')
 
-fig_acc.show()
+fig_acc_users.show()
+
+
+# In[ ]:
+
+
+fig_f1_users = go.Figure()
+lin_f1 = []
+x_names = [str(el) + u' пользователей' for el in variant_nusers]
+x_names[0] = str(variant_nusers[0]) + u' пользователя'
+for idx, el in enumerate(full_f1_users):
+    lin_f1.append(np.mean(el))
+    fig_f1_users.add_trace(go.Box(y=el, name = x_names[idx]))
+    
+#fig.add_trace(go.Scatter(y=lin_acc, x = x_names))
+fig_f1_users.update_layout(
+    autosize = False,
+    width  = 900,
+    height = 500, 
+    title  = u'Ожидаемая метрика f1_score в зависимости от количества пользователей для классификации')
+
+fig_f1_users.show()
 
 
 # ### Посмотрим на влияние от добавления ограничения сессии по времени. 
@@ -584,7 +613,7 @@ fig_acc.show()
 # In[34]:
 
 
-get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\ntime_limit = 600\n\nfull_acc_tm_limit = []\n    \nparam_list = list(zip(variant_naver, variant_nusers))\nfor params in tqdm(param_list, desc = u'для всех вариантов пользователей и подвыборок'):\n\n    indexes = get_bootstrap_samples(filenames_all, params[0], params[1])\n   \n    acc = []\n    for idx in indexes:\n        train_data_sparse, targets = prepare_sparse_train_set_window(filenames_all, idx, sess_len, \n                                                                     wind_size, freq_site_dict,\n                                                                     inp_time_limit = time_limit,\n                                                                    )\n        \n        try:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821, stratify=targets)\n        except ValueError:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821)\n            if len(set(y_train)) == 1:\n                #print('gg')\n                continue\n\n        \n        clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                           max_iter = 1500,\n                           )\n        clf.fit(X_train, y_train)\n        y_pred = clf.predict(X_valid)\n        acc.append(accuracy_score(y_valid, y_pred))\n        \n    full_acc_tm_limit.append(acc)")
+get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\ntime_limit = 600\n\nfull_acc_tm_limit = []\nfull_f1_tm_limit  = []\n    \nparam_list = list(zip(variant_naver, variant_nusers))\nfor params in tqdm(param_list, desc = u'для всех вариантов пользователей и подвыборок', disable = TQDM_DISABLE):\n\n    indexes = get_bootstrap_samples(filenames_all, params[0], params[1])\n   \n    acc = []\n    f1  = []\n    for idx in indexes:\n        train_data_sparse, targets = prepare_sparse_train_set_window(filenames_all, idx, sess_len, \n                                                                     wind_size, freq_site_dict,\n                                                                     inp_time_limit = time_limit,\n                                                                    )\n        \n        try:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821, stratify=targets)\n        except ValueError:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821)\n        \n        clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                           max_iter = 1500,\n                           )\n        clf.fit(X_train, y_train)\n        y_pred = clf.predict(X_valid)\n        acc.append(accuracy_score(y_valid, y_pred))\n        f1.append(f1_score(y_valid, y_pred, average = 'macro'))\n        \n    full_acc_tm_limit.append(acc)\n    full_f1_tm_limit.append(f1)")
 
 
 # In[35]:
@@ -611,6 +640,27 @@ fig_acc_tm_limit.show()
 # In[ ]:
 
 
+fig_f1_tm_limit = go.Figure()
+lin_f1 = []
+x_names = [str(el) + u' пользователей' for el in variant_nusers]
+x_names[0] = str(variant_nusers[0]) + u' пользователя'
+for idx, el in enumerate(full_f1_tm_limit):
+    lin_f1.append(np.mean(el))
+    fig_f1_tm_limit.add_trace(go.Box(y=el, name = x_names[idx]))
+    
+#fig.add_trace(go.Scatter(y=lin_acc, x = x_names))
+fig_f1_tm_limit.update_layout(
+    autosize = False,
+    width  = 900,
+    height = 500, 
+    title  = u'Ожидаемая метрика f1_score в зависимости от количества пользователей для классификации')
+
+fig_f1_tm_limit.show()
+
+
+# In[ ]:
+
+
 Оценка значимости изменений
 
 
@@ -631,7 +681,7 @@ len(variant_nusers) == len(variant_naver)
 # In[32]:
 
 
-get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\n\nfull_acc_15 = []\n    \nparam_list = list(zip(variant_naver, variant_nusers))\nfor params in tqdm(param_list, desc = u'для всех вариантов пользователей и подвыборок'):\n\n    indexes = get_bootstrap_samples(filenames_all, params[0], params[1])\n   \n    acc = []\n    for idx in indexes:\n        train_data_sparse, targets = prepare_sparse_train_set_window(filenames_all, idx, sess_len, \n                                                                     wind_size, freq_site_dict,\n                                                                    )\n        \n        try:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821, stratify=targets)\n        except ValueError:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821)\n            if len(set(y_train)) == 1:\n                #print('gg')\n                continue\n\n        \n        clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                           max_iter = 1500,\n                           )\n        clf.fit(X_train, y_train)\n        y_pred = clf.predict(X_valid)\n        acc.append(accuracy_score(y_valid, y_pred))\n        \n    full_acc_15.append(acc)")
+get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\n\nfull_acc_15 = []\nfull_f1_15  = []\n    \nparam_list = list(zip(variant_naver, variant_nusers))\nfor params in tqdm(param_list, desc = u'для всех вариантов пользователей и подвыборок', disable = TQDM_DISABLE):\n\n    indexes = get_bootstrap_samples(filenames_all, params[0], params[1])\n   \n    acc = []\n    f1  = []\n    for idx in indexes:\n        train_data_sparse, targets = prepare_sparse_train_set_window(filenames_all, idx, sess_len, \n                                                                     wind_size, freq_site_dict,\n                                                                    )\n        \n        try:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821, stratify=targets)\n        except ValueError:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821)\n            if len(set(y_train)) == 1:\n                #print('gg')\n                continue\n\n        \n        clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                           max_iter = 1500,\n                           )\n        clf.fit(X_train, y_train)\n        y_pred = clf.predict(X_valid)\n        acc.append(accuracy_score(y_valid, y_pred))\n        f1.append(f1_score(y_valid, y_pred, average = 'macro'))\n        \n    full_acc_15.append(acc)\n    full_f1_15.append(f1)")
 
 
 # In[33]:
@@ -658,7 +708,22 @@ fig_acc_15.show()
 # In[ ]:
 
 
+fig_f1_15 = go.Figure()
+lin_f1 = []
+x_names = [str(el) + u' пользователей' for el in variant_nusers]
+x_names[0] = str(variant_nusers[0]) + u' пользователя'
+for idx, el in enumerate(full_f1_15):
+    lin_f1.append(np.mean(el))
+    fig_f1_15.add_trace(go.Box(y=el, name = x_names[idx]))
+    
+#fig.add_trace(go.Scatter(y=lin_acc, x = x_names))
+fig_f1_15.update_layout(
+    autosize = False,
+    width  = 900,
+    height = 500, 
+    title  = u'Ожидаемая точность в зависимости от количества пользователей для классификации')
 
+fig_f1_15.show()
 
 
 # In[ ]:
@@ -693,7 +758,7 @@ def prepare_sparse_train_time_set_window(inp_fnames, inp_idexes, inp_sess_len,
     print_index = 15
     
     for idx in (inp_idexes):
-        #print(row_index)
+        
         temp_dataframe = pd.read_csv(os.path.join(PATH_TO_DATA_ALL_PREP, f'cat{inp_fnames[idx]}.csv'), 
                                          usecols = ['site', 'time_diff']
                                         )
@@ -704,16 +769,14 @@ def prepare_sparse_train_time_set_window(inp_fnames, inp_idexes, inp_sess_len,
         while index < temp_dataframe.shape[0]:
             condition_index = 0
             total_time = 0
-            #new_sess = {('site' + str(n+1)):0 for n in range(inp_sess_len)}
+            
             new_sess = defaultdict(int)
             # determine one current session
             while (condition_index < inp_sess_len) and (total_time < inp_time_limit) and ((index + condition_index) < temp_dataframe.shape[0]):
-            #while (condition_index < inp_sess_len) and ((index + condition_index) < temp_dataframe.shape[0]):
                 site_time = temp_dataframe.time_diff[index + condition_index]
                 if site_time == 0:
                     site_time += 1
                     
-                #new_sess['site' + str(condition_index+1)] = inp_freq_site_dict[temp_dataframe.site[index + condition_index]][0]
                 new_sess[inp_freq_site_dict[temp_dataframe.site[index + condition_index]][0]] += site_time
                 total_time += temp_dataframe.time_diff[index + condition_index]
                 
@@ -726,18 +789,13 @@ def prepare_sparse_train_time_set_window(inp_fnames, inp_idexes, inp_sess_len,
                 index += inp_wind_size
 
                 
-            row_csr += [row_index] * len(new_sess)
-            data_csr+= list(new_sess.values()) 
-            col_csr += list(new_sess.keys())
-            #cnt_csr  = Counter(new_sess.values())
-            #row_csr += [row_index] * len(cnt_csr)  # row number in which value is parse
-            #data_csr+= list(cnt_csr.values())      # value
-            #col_csr += list(cnt_csr.keys())        # column number in which value is parse
+            row_csr += [row_index] * len(new_sess) # row number in which value is parse
+            data_csr+= list(new_sess.values())     # value
+            col_csr += list(new_sess.keys())       # column number in which value is parse
             ret_userid_list.append(userid)
             row_index += 1
 
     ret_csr = csr_matrix((data_csr, (row_csr, col_csr)), shape = (max(row_csr)+1, max(col_csr)+1))[:, 1:]
-    #print(early_exit)
     
     return ret_csr, np.array(ret_userid_list)
 
@@ -745,7 +803,7 @@ def prepare_sparse_train_time_set_window(inp_fnames, inp_idexes, inp_sess_len,
 # In[37]:
 
 
-get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\ntime_limit = 600\n\nfull_time_acc = []\n    \nparam_list = list(zip(variant_naver, variant_nusers))\nfor params in tqdm(param_list, desc = u'для всех вариантов пользователей и подвыборок'):\n\n    indexes = get_bootstrap_samples(filenames_all, params[0], params[1])\n   \n    acc = []\n    for idx in indexes:\n        train_data_sparse, targets = prepare_sparse_train_time_set_window(filenames_all, idx, sess_len, \n                                                                     wind_size, freq_site_dict,\n                                                                     inp_time_limit = time_limit,\n                                                                    )\n        \n        try:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821, stratify=targets)\n        except ValueError:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821)\n            if len(set(y_train)) == 1:\n                #print('gg')\n                continue\n\n        \n        clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                           max_iter = 2000,\n                           )\n        clf.fit(X_train, y_train)\n        y_pred = clf.predict(X_valid)\n        acc.append(accuracy_score(y_valid, y_pred))\n        \n    full_time_acc.append(acc)")
+get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\ntime_limit = 600\n\nfull_time_acc = []\nfull_time_f1  = []\n    \nparam_list = list(zip(variant_naver, variant_nusers))\nfor params in tqdm(param_list, desc = u'для всех вариантов пользователей и подвыборок', disable = TQDM_DISABLE):\n\n    indexes = get_bootstrap_samples(filenames_all, params[0], params[1])\n   \n    acc = []\n    f1  = []\n    for idx in indexes:\n        train_data_sparse, targets = prepare_sparse_train_time_set_window(filenames_all, idx, sess_len, \n                                                                     wind_size, freq_site_dict,\n                                                                     inp_time_limit = time_limit,\n                                                                    )\n        \n        try:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821, stratify=targets)\n        except ValueError:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821)\n        \n        clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                           max_iter = 2000,\n                           )\n        clf.fit(X_train, y_train)\n        y_pred = clf.predict(X_valid)\n        acc.append(accuracy_score(y_valid, y_pred))\n        f1.append(f1_score(y_valid, y_pred, average = 'macro'))\n        \n    full_time_acc.append(acc)\n    full_time_f1.append(f1)")
 
 
 # In[38]:
@@ -772,7 +830,22 @@ fig_time_acc.show()
 # In[ ]:
 
 
+fig_time_f1 = go.Figure()
+lin_f1 = []
+x_names = [str(el) + u' пользователей' for el in variant_nusers]
+x_names[0] = str(variant_nusers[0]) + u' пользователя'
+for idx, el in enumerate(full_time_f1):
+    lin_f1.append(np.mean(el))
+    fig_time_f1.add_trace(go.Box(y=el, name = x_names[idx]))
+    
+#fig.add_trace(go.Scatter(y=lin_acc, x = x_names))
+fig_time_f1.update_layout(
+    autosize = False,
+    width  = 900,
+    height = 500, 
+    title  = u'Ожидаемая метрика f1_score в зависимости от количества пользователей для классификации')
 
+fig_time_f1.show()
 
 
 # In[ ]:
@@ -781,37 +854,35 @@ fig_time_acc.show()
 
 
 
-# In[ ]:
+# In[2]:
 
 
-
+WEEK = 7
 
 
 # In[63]:
 
 
-def prepare_sparse_train_set_total(inp_fnames, inp_idexes, inp_sess_len, 
-                                    inp_wind_size, inp_freq_site_dict, inp_time_limit = 999999999):
+def prepare_sparse_train_set_total(inp_fnames, inp_sess_len, inp_wind_size, 
+                                   inp_freq_site_dict, inp_time_limit = 999999999):
     
     ret_userid_list = []
-    # form dataframe names ['site1, site2......site{session_length}']
-    col_names = ['site' + str(n+1) for n in range(inp_sess_len)]
 
     row_csr  = []
     col_csr  = []
     data_csr = []
         
     row_index = 0
-    early_exit = 0
+    #early_exit = 0
     
-    print_index = 15
-    time_stast_idx = len(inp_freq_site_dict)
+    #print_index = 15
+    time_start_idx = len(inp_freq_site_dict)
     
-    for idx in (inp_idexes):
-        #print(row_index)
-        temp_dataframe = pd.read_csv(os.path.join(PATH_TO_DATA_ALL_PREP, f'cat{inp_fnames[idx]}.csv'), 
-                                         usecols = ['site', 'time_diff']
-                                        )
+    for idx in tqdm(range(len(inp_fnames)), disable = TQDM_DISABLE):
+        temp_dataframe = pd.read_csv(os.path.join(PATH_TO_DATA_ALL_PREP, f'user{inp_fnames[idx]}.csv'), 
+                                         usecols = ['timestamp', 'site', 'time_diff'],
+                                         parse_dates=['timestamp']
+                                    )
         userid = inp_fnames[idx]
               
         index = 0
@@ -819,54 +890,52 @@ def prepare_sparse_train_set_total(inp_fnames, inp_idexes, inp_sess_len,
         while index < temp_dataframe.shape[0]:
             condition_index = 0
             total_time = 0
-            #new_sess = {('site' + str(n+1)):0 for n in range(inp_sess_len)}
-            new_sess = defaultdict(int)
+            
             new_sess = defaultdict(float)
+            #add 'dow' and 'hour' as OHE
+            dow  = temp_dataframe.timestamp[index].dayofweek
+            hour = temp_dataframe.timestamp[index].hour
+                
+            # all sites + all site times / + 7 days (for hour)
+            new_sess[time_start_idx*2 + dow + 1] = 1
+            new_sess[time_start_idx*2 + WEEK + hour + 1] = 1
+            
             # determine one current session
             while (condition_index < inp_sess_len) and (total_time < inp_time_limit) and ((index + condition_index) < temp_dataframe.shape[0]):
-            #while (condition_index < inp_sess_len) and ((index + condition_index) < temp_dataframe.shape[0]):
                 site_time = temp_dataframe.time_diff[index + condition_index]
                 if site_time == 0:
                     site_time += 1
-                    
-                #new_sess['site' + str(condition_index+1)] = inp_freq_site_dict[temp_dataframe.site[index + condition_index]][0]
+                        
+                # normalize on ~[0, 1)
                 new_sess[inp_freq_site_dict[temp_dataframe.site[index + condition_index]][0]] += (1/10)
-                new_sess[inp_freq_site_dict[temp_dataframe.site[index + condition_index]][0] + time_stast_idx] += (site_time/inp_time_limit)
+                new_sess[inp_freq_site_dict[temp_dataframe.site[index + condition_index]][0] + time_start_idx] += (site_time/inp_time_limit)
                 total_time += temp_dataframe.time_diff[index + condition_index]
                 
                 condition_index += 1
 
             if (condition_index <= inp_wind_size):
                 index += (condition_index)
-                early_exit += 1
+                #early_exit += 1
             else:
                 index += inp_wind_size
 
                 
-            row_csr += [row_index] * len(new_sess)
-            data_csr+= list(new_sess.values()) 
-            col_csr += list(new_sess.keys())
-            #cnt_csr  = Counter(new_sess.values())
-            #row_csr += [row_index] * len(cnt_csr)  # row number in which value is parse
-            #data_csr+= list(cnt_csr.values())      # value
-            #col_csr += list(cnt_csr.keys())        # column number in which value is parse
+            row_csr += [row_index] * len(new_sess)   # row number in which value is parse
+            data_csr+= list(new_sess.values())       # value
+            col_csr += list(new_sess.keys())         # column number in which value is parse
+
             ret_userid_list.append(userid)
             row_index += 1
 
     ret_csr = csr_matrix((data_csr, (row_csr, col_csr)), shape = (max(row_csr)+1, max(col_csr)+1))[:, 1:]
-    #ret_csr = csr_matrix((data_csr, (row_csr, col_csr)), shape = (max(row_csr)+1, max(col_csr)+1))
-    #print(early_exit)
     
     return ret_csr, np.array(ret_userid_list)
 
-UP TO 20
-?TIME LIMIT?
-function  without time
 
 # In[70]:
 
 
-get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\ntime_limit = 600\n\nfull_total_acc = []\n    \nparam_list = list(zip(variant_naver, variant_nusers))\nfor params in tqdm(param_list, desc = u'для всех вариантов пользователей и подвыборок'):\n\n    indexes = get_bootstrap_samples(filenames_all, params[0], params[1])\n   \n    acc = []\n    for idx in indexes:\n        train_data_sparse, targets = prepare_sparse_train_set_total(filenames_all, idx, sess_len, \n                                                                     wind_size, freq_site_dict,\n                                                                     inp_time_limit = time_limit,\n                                                                    )\n        \n        try:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821, stratify=targets)\n        except ValueError:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821)\n            if len(set(y_train)) == 1:\n                #print('gg')\n                continue\n\n        \n        clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                            max_iter = 1500,\n                            eta0 = 1.0, learning_rate = 'adaptive',\n                            #penalty = 'l1',\n                           )\n        clf.fit(X_train, y_train)\n        y_pred = clf.predict(X_valid)\n        acc.append(accuracy_score(y_valid, y_pred))\n        \n    full_total_acc.append(acc)")
+get_ipython().run_cell_magic('time', '', "\nsess_len  = 15\nwind_size = 5\ntime_limit = 600\n\nfull_total_acc = []\nfull_total_f1  = []\n    \nparam_list = list(zip(variant_naver, variant_nusers))\nfor params in tqdm(param_list, desc = u'для всех вариантов пользователей и подвыборок', disable = TQDM_DISABLE):\n\n    indexes = get_bootstrap_samples(filenames_all, params[0], params[1])\n   \n    acc = []\n    f1  = []\n    for idx in indexes:\n        train_data_sparse, targets = prepare_sparse_train_set_total(filenames_all, idx, sess_len, \n                                                                     wind_size, freq_site_dict,\n                                                                     inp_time_limit = time_limit,\n                                                                    )\n        \n        try:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821, stratify=targets)\n        except ValueError:\n            X_train, X_valid, y_train, y_valid = train_test_split(train_data_sparse, targets, \n                                                      test_size=0.3, \n                                                      random_state=821)\n        \n        clf = SGDClassifier(loss = 'log', n_jobs = -1, \n                            max_iter = 1500,\n                            eta0 = 1.0, learning_rate = 'adaptive',\n                            #penalty = 'l1',\n                           )\n        clf.fit(X_train, y_train)\n        y_pred = clf.predict(X_valid)\n        acc.append(accuracy_score(y_valid, y_pred))\n        f1.append(f1_score(y_valid, y_pred))\n        \n    full_total_acc.append(acc)\n    full_total_f1.append(f1)")
 
 
 # In[71]:
@@ -888,6 +957,27 @@ fig_total_acc.update_layout(
     title  = u'Ожидаемая точность в зависимости от количества пользователей для классификации')
 
 fig_total_acc.show()
+
+
+# In[ ]:
+
+
+fig_total_f1 = go.Figure()
+lin_f1 = []
+x_names = [str(el) + u' пользователей' for el in variant_nusers]
+x_names[0] = str(variant_nusers[0]) + u' пользователя'
+for idx, el in enumerate(full_total_f1):
+    lin_f1.append(np.mean(el))
+    fig_total_f1.add_trace(go.Box(y=el, name = x_names[idx]))
+    
+#fig.add_trace(go.Scatter(y=lin_acc, x = x_names))
+fig_total_f1.update_layout(
+    autosize = False,
+    width  = 900,
+    height = 500, 
+    title  = u'Ожидаемая точность в зависимости от количества пользователей для классификации')
+
+fig_total_f1.show()
 
 
 # Полученный результат противоречит ожиданиям. Вероятно сказалось то, что пространство признаков у нас более 100000, что несколько больше объектов.    
